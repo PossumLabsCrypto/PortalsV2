@@ -16,24 +16,15 @@ contract PortalV2MultiAssetTest is Test {
     address constant WETH_ADDRESS = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
     address public constant PSM_ADDRESS =
         0x17A8541B82BF67e10B0874284b4Ae66858cb1fd5;
-    address constant esVKA = 0x95b3F9797077DDCa971aB8524b439553a220EB2A;
-
-    // Vaultka staking contracts
-    address constant SINGLE_STAKING =
-        0x314223E2fA375F972E159002Eb72A96301E99e22;
-    address constant DUAL_STAKING = 0x31Fa38A6381e9d1f4770C73AB14a0ced1528A65E;
-
-    uint256 constant _POOL_ID_USDC = 5;
-    uint256 constant _POOL_ID_WETH = 10;
 
     address private constant USDC_WATER =
         0x9045ae36f963b7184861BDce205ea8B08913B48c;
     address private constant WETH_WATER =
         0x8A98929750e6709Af765F976c6bddb5BfFE6C06c;
 
-    address private constant _PRINCIPAL_TOKEN_ADDRESS_USDC =
+    address private constant _ADDRESS_USDC =
         0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-    address private constant _PRINCIPAL_TOKEN_ADDRESS_ETH = address(0);
+    address private constant _ADDRESS_ETH = address(0);
 
     // General constants
     uint256 constant _TERMINAL_MAX_LOCK_DURATION = 157680000;
@@ -68,7 +59,7 @@ contract PortalV2MultiAssetTest is Test {
 
     // Token Instances
     IERC20 psm = IERC20(PSM_ADDRESS);
-    IERC20 usdc = IERC20(_PRINCIPAL_TOKEN_ADDRESS_USDC);
+    IERC20 usdc = IERC20(_ADDRESS_USDC);
     IERC20 weth = IERC20(WETH_ADDRESS);
 
     // Portals & LP
@@ -102,7 +93,7 @@ contract PortalV2MultiAssetTest is Test {
         portal_USDC = new PortalV2MultiAsset(
             _VIRTUAL_LP,
             _TARGET_CONSTANT_USDC,
-            _PRINCIPAL_TOKEN_ADDRESS_USDC,
+            _ADDRESS_USDC,
             _DECIMALS_USDC,
             "USD Coin",
             "USDC",
@@ -111,7 +102,7 @@ contract PortalV2MultiAssetTest is Test {
         portal_ETH = new PortalV2MultiAsset(
             _VIRTUAL_LP,
             _TARGET_CONSTANT_WETH,
-            _PRINCIPAL_TOKEN_ADDRESS_ETH,
+            _ADDRESS_ETH,
             _DECIMALS,
             "ETHER",
             "ETH",
@@ -165,7 +156,7 @@ contract PortalV2MultiAssetTest is Test {
         vm.prank(psmSender);
         virtualLP.registerPortal(
             address(portal_USDC),
-            _PRINCIPAL_TOKEN_ADDRESS_USDC,
+            _ADDRESS_USDC,
             USDC_WATER
         );
     }
@@ -173,11 +164,7 @@ contract PortalV2MultiAssetTest is Test {
     // Register ETH Portal
     function helper_registerPortalETH() public {
         vm.prank(psmSender);
-        virtualLP.registerPortal(
-            address(portal_ETH),
-            _PRINCIPAL_TOKEN_ADDRESS_ETH,
-            WETH_WATER
-        );
+        virtualLP.registerPortal(address(portal_ETH), _ADDRESS_ETH, WETH_WATER);
     }
 
     // activate the Virtual LP
@@ -226,12 +213,7 @@ contract PortalV2MultiAssetTest is Test {
         helper_sendUSDCtoLP();
         vm.startPrank(psmSender);
         psm.approve(address(virtualLP), 1e55);
-        virtualLP.convert(
-            _PRINCIPAL_TOKEN_ADDRESS_USDC,
-            msg.sender,
-            1,
-            block.timestamp
-        );
+        virtualLP.convert(_ADDRESS_USDC, msg.sender, 1, block.timestamp);
         vm.stopPrank();
     }
 
@@ -366,12 +348,7 @@ contract PortalV2MultiAssetTest is Test {
         // when LP is inactive
         vm.startPrank(Alice);
         vm.expectRevert(ErrorsLib.InactiveLP.selector);
-        virtualLP.convert(
-            _PRINCIPAL_TOKEN_ADDRESS_USDC,
-            msg.sender,
-            1,
-            block.timestamp
-        );
+        virtualLP.convert(_ADDRESS_USDC, msg.sender, 1, block.timestamp);
         vm.stopPrank();
     }
 
@@ -389,30 +366,15 @@ contract PortalV2MultiAssetTest is Test {
 
         // wrong recipient address
         vm.expectRevert(ErrorsLib.InvalidAddress.selector);
-        virtualLP.convert(
-            _PRINCIPAL_TOKEN_ADDRESS_USDC,
-            address(0),
-            1,
-            block.timestamp
-        );
+        virtualLP.convert(_ADDRESS_USDC, address(0), 1, block.timestamp);
 
         // wrong amount minReceived
         vm.expectRevert(ErrorsLib.InvalidAmount.selector);
-        virtualLP.convert(
-            _PRINCIPAL_TOKEN_ADDRESS_USDC,
-            msg.sender,
-            0,
-            block.timestamp
-        );
+        virtualLP.convert(_ADDRESS_USDC, msg.sender, 0, block.timestamp);
 
         // LP does not have enough tokens (balance is 0)
         vm.expectRevert(ErrorsLib.InsufficientReceived.selector);
-        virtualLP.convert(
-            _PRINCIPAL_TOKEN_ADDRESS_USDC,
-            msg.sender,
-            1e6,
-            block.timestamp
-        );
+        virtualLP.convert(_ADDRESS_USDC, msg.sender, 1e6, block.timestamp);
 
         vm.stopPrank();
     }
@@ -425,12 +387,7 @@ contract PortalV2MultiAssetTest is Test {
 
         vm.startPrank(Alice);
         psm.approve(address(virtualLP), 1e55);
-        virtualLP.convert(
-            _PRINCIPAL_TOKEN_ADDRESS_USDC,
-            Bob,
-            usdcSendAmount,
-            block.timestamp
-        );
+        virtualLP.convert(_ADDRESS_USDC, Bob, usdcSendAmount, block.timestamp);
         vm.stopPrank();
 
         assertTrue(psm.balanceOf(Alice) == psmAmount - _AMOUNT_TO_CONVERT);
