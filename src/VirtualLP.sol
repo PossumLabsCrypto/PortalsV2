@@ -100,7 +100,7 @@ contract VirtualLP is ReentrancyGuard {
         115792089237316195423570985008687907853269984665640564039457584007913129639935;
 
     address public owner;
-    uint256 private constant OWNER_DURATION = 172800; // 172800 = 2 days // 777600 = 9 days
+    uint256 private constant OWNER_DURATION = 777600; // 9 days
     uint256 public immutable OWNER_EXPIRY_TIME; // Time required to pass before owner can be revoked
     uint256 public immutable AMOUNT_TO_CONVERT; // fixed amount of PSM tokens required to withdraw yield in the contract
     uint256 public immutable FUNDING_PHASE_DURATION; // seconds after deployment before Portal can be activated
