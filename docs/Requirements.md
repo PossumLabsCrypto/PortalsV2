@@ -141,7 +141,7 @@ The constructor value that remains constant for all Portals:
 The individual constructor values:
 
 **USDC Portal**
-- `_CONSTANT_PRODUCT` = 
+- `_CONSTANT_PRODUCT` = 915750915750916 * 1e36 (to be adjusted for 30% APR)
 - `_PRINCIPAL_TOKEN_ADDRESS` = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
 - `_DECIMALS` = 6
 - `_PRINCIPAL_NAME` = USD Coin
@@ -149,7 +149,7 @@ The individual constructor values:
 - `_META_DATA_URI` = ipfs://bafkreihjtvd2huidigr6jtpssfbuo6qktz6xek3vywkeqykshl5p5tx2gi
 
 **USDC.e Portal**
-- `_CONSTANT_PRODUCT` = 
+- `_CONSTANT_PRODUCT` = 915750915750916 * 1e36 (to be adjusted for 30% APR)
 - `_PRINCIPAL_TOKEN_ADDRESS` = 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8
 - `_DECIMALS` = 6
 - `_PRINCIPAL_NAME` = Bridged USDC
@@ -157,7 +157,7 @@ The individual constructor values:
 - `_META_DATA_URI` = ipfs://bafkreidrjgxmh73goadpgmxw4364wlm5so7t73aexc6lxlkoji2i54mpny
 
 **ETH Portal**
-- `_CONSTANT_PRODUCT` = 
+- `_CONSTANT_PRODUCT` = 247747725428 * 1e36 (to be adjusted for 30% APR)
 - `_PRINCIPAL_TOKEN_ADDRESS` = 0x0000000000000000000000000000000000000000
 - `_DECIMALS` = 18
 - `_PRINCIPAL_NAME` = Ether
@@ -165,7 +165,7 @@ The individual constructor values:
 - `_META_DATA_URI` = ipfs://bafkreieun4odrood5hku6aqtcisqeplyo5wzswunnye3tew65e3t7t5vcy
 
 **WBTC Portal**
-- `_CONSTANT_PRODUCT` =
+- `_CONSTANT_PRODUCT` = 12387387498 * 1e36 (to be adjusted for 30% APR)
 - `_PRINCIPAL_TOKEN_ADDRESS` = 0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f
 - `_DECIMALS` = 8
 - `_PRINCIPAL_NAME` = Wrapped BTC
@@ -173,7 +173,7 @@ The individual constructor values:
 - `_META_DATA_URI` = ipfs://bafkreien27jkip4ip6cbdl7hgujwod35z7wi36akzflmwlkutyg4rlv4qu
 
 **ARB Portal**
-- `_CONSTANT_PRODUCT` =
+- `_CONSTANT_PRODUCT` = 509164969450102 * 1e36 (to be adjusted for 30% APR)
 - `_PRINCIPAL_TOKEN_ADDRESS` = 0x912CE59144191C1204E64559FE8253a0e49E6548
 - `_DECIMALS` = 18
 - `_PRINCIPAL_NAME` = Arbitrum
@@ -181,7 +181,7 @@ The individual constructor values:
 - `_META_DATA_URI` = ipfs://bafkreidzkg7qdqstl3vp7atabc5nlb3vjjpleww74ztcl7emydr6sc4gri
 
 **LINK Portal**
-- `_CONSTANT_PRODUCT` =
+- `_CONSTANT_PRODUCT` = 45829514207149 * 1e36 (to be adjusted for 30% APR)
 - `_PRINCIPAL_TOKEN_ADDRESS` = 0xf97f4df75117a78c1A5a0DBb814Af92458539FB4
 - `_DECIMALS` = 18
 - `_PRINCIPAL_NAME` = ChainLink Token
@@ -207,7 +207,7 @@ Only the owner of the VirtualLP can register Portals for security reasons. The o
 The following chart provides a general view of the system and the interactions between the different components.
 [Zoomable miro board](https://miro.com/app/board/uXjVKWfs7x4=/?share_link_id=724769526865)
 
-![Diagram](https://github.com/PossumLabsCrypto/PortalsV2/blob/master/docs/Architecture.png)
+![Diagram](https://github.com/PossumLabsCrypto/PortalsV2/blob/main/docs/Architecture.png)
 
 ## 2.3. Contract Information
 
