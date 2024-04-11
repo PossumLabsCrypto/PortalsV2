@@ -10,15 +10,13 @@
     - [1.3. Business Logic](#13-business-logic)
     - [1.4. Use Cases](#14-use-cases)
   - [Technical requirements](#technical-requirements)
-    - [2.1. Architecture Overview](#21-architecture-overview)
-    - [2.2. Contract Information](#22-contract-information)
-      - [2.1. Deployment Instructions](#21-deployment-instructions)
-  - [2.2. Architecture Overview](#22-architecture-overview)
-  - [2.3. Contract Information](#23-contract-information)
-    - [2.3.1. VirtualLP.sol](#231-virtuallpsol)
-    - [2.3.2. PortalV2MultiAsset.sol](#232-portalv2multiassetsol)
-    - [2.3.3. MintBurnToken.sol](#233-mintburntokensol)
-    - [2.3.4. PortalNFT.sol](#234-portalnftsol)
+    - [2.1. Deployment Instructions](#21-deployment-instructions)
+    - [2.2. Architecture Overview](#22-architecture-overview)
+    - [2.3. Contract Information](#23-contract-information)
+      - [2.3.1. VirtualLP.sol](#231-virtuallpsol)
+      - [2.3.2. PortalV2MultiAsset.sol](#232-portalv2multiassetsol)
+      - [2.3.3. MintBurnToken.sol](#233-mintburntokensol)
+      - [2.3.4. PortalNFT.sol](#234-portalnftsol)
 
 ## Project Overview
 The primary purpose of Possum Portals (“Portals”) is to enable users to receive upfront, fixed-rate yield from DeFi staking opportunities instead of accruing yield over time at an unpredictable, variable rate. Further, Portals enable duration-independent speculation on expected future yield rates of the composed yield sources (external protocols). Lastly, the funding mechanism of Portals allows PSM holders to deploy their tokens to a productive use case by lending them to the Portal for a potential profit.
@@ -99,7 +97,6 @@ Some exemplary use cases:
 
 ## Technical requirements
 
-### 2.1. Architecture Overview
 The project has been developed with Solidity language, using Foundry as a development environment.
 OpenZeppelin libraries are used in the Project. Additional information can be found in their GitHub. (https://github.com/OpenZeppelin/openzeppelin-contracts)
 The project structure follows the standard Foundry template. It contains contracts and tests in their respective folders. There are no scripts used by the project.
@@ -116,9 +113,7 @@ A combined unit and integration test can be found in `./test`. To run the tests 
 
 Expanded fuzz testing and formal verification can be found in a separate, public repository: https://github.com/shieldify-security/Portal-V2
 
-### 2.2. Contract Information
-
-#### 2.1. Deployment Instructions
+### 2.1. Deployment Instructions
 The following instructions assume that the protocol is deployed on Arbitrum main net and that the staking tokens (principal) already exist. If the protocol is deployed on a test network, the principal tokens must be deployed first. The code is compiled with solidity 0.8.19 and OpenZeppelin libraries of version 4.9.6 are used to meet the requirements of Arbitrum.
 
 **Step 1: Deploy the contract VirtualLP from VirtualLP.sol.**
@@ -202,18 +197,18 @@ To enable upfront yield functionality of Portals, they must be connected to the 
 
 Only the owner of the VirtualLP can register Portals for security reasons. The owner can be revoked by anyone after the hardcoded ownership duration has expired. (Ownership is only required for setting up the VirtualLP)
 
-## 2.2. Architecture Overview
+### 2.2. Architecture Overview
 
 The following chart provides a general view of the system and the interactions between the different components.
 [Zoomable miro board](https://miro.com/app/board/uXjVKWfs7x4=/?share_link_id=724769526865)
 
 ![Diagram](https://github.com/PossumLabsCrypto/PortalsV2/blob/main/docs/Architecture.png)
 
-## 2.3. Contract Information
+### 2.3. Contract Information
 
 This section contains detailed information about the contracts used in the project.
 
-### 2.3.1. VirtualLP.sol
+#### 2.3.1. VirtualLP.sol
 
 This contract receives ERC20 from the Portal contract that are staked by users and then stakes them into the external Vault contracts to generate yield. It also holds PSM tokens that are necessary to pay upfront yield to Portal users. This mechanism utilizes the constant product formula x * y = k to ensure that there is always some amount of PSM available to pay out as yield.
 
@@ -239,7 +234,7 @@ There are some getter functions and utility functions that facilitate required s
 - `getBurnableBtokens()` returns the amount of bTokens that can be redeemed given the current amount of PSM in the reward pool.
 - `increaseAllowanceVault()` increases the spending allowance of a specific tokens by its corresponding lending vault to the maximum uint256. This is required so that the vLP can deposit assets into the external protocol.
 
-### 2.3.2. PortalV2MultiAsset.sol
+#### 2.3.2. PortalV2MultiAsset.sol
 
 Most of the Portal functionality can only work when the vLP is activated. This is ensured by the modifier `activeLP` on the functions `stake()`, `quoteBuyPortalEnergy()`, and `quoteSellPortalEnergy()`. This modifier is used sparsely because most other functions logically depend on the three functions mentioned above. For example, nobody can call `unstake()` successfully if there was no stake in the first place. However, there are a few functions mainly for preparation purposes that can be called.
 
@@ -263,11 +258,11 @@ Most of the Portal functionality can only work when the vLP is activated. This i
 - `quoteBuyPortalEnergy()` returns the amount of Portal Energy a user would receive given the specified amount of PSM input.
 - `quoteSellPortalEnergy()` returns the amount of PSM tokens a user would receive given the specified amount of Portal Energy input.
 
-### 2.3.3. MintBurnToken.sol
+#### 2.3.3. MintBurnToken.sol
 
 This contract is a simple ERC20 with an owner-controlled `mint()` function and the burnable extension.
 
-### 2.3.4. PortalNFT.sol
+#### 2.3.4. PortalNFT.sol
 
 This contract can save account information from a Portal user’s stake and also return this information upon redemption. It has a single metadata URI that is used for all ID mints because the relevant account data is saved inside the NFT itself instead of outsourcing this to metadata. The metadata is merely a generic description, name, and picture.
 
