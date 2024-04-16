@@ -2,16 +2,9 @@
 pragma solidity =0.8.19;
 
 interface IWater {
-    function deposit(
-        uint256 _assets,
-        address _receiver
-    ) external returns (uint256);
+    function deposit(uint256 _assets, address _receiver) external returns (uint256);
 
-    function withdraw(
-        uint256 _assets,
-        address _receiver,
-        address _owner
-    ) external returns (uint256);
+    function withdraw(uint256 _assets, address _receiver, address _owner) external returns (uint256);
 
     function withdrawETH(uint256 _assets) external returns (uint256);
 
@@ -24,4 +17,6 @@ interface IWater {
     function withdrawalFees() external view returns (uint256);
 
     function DENOMINATOR() external view returns (uint256);
+
+    function setLockTime(uint256 _lockTime) external;
 }
