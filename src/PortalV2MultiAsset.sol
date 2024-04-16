@@ -328,39 +328,18 @@ contract PortalV2MultiAsset is ReentrancyGuard {
     /// @notice Stake the principal token into the Portal & redirect principal to yield source
     /// @dev This function allows users to stake their principal tokens into the Portal
     /// @dev Can only be called if LP is active
-    /// @dev Does not follow CEI pattern for optimisation reasons. The handled tokens are trusted.
     /// @dev Update the user account
     /// @dev Update the global tracker of staked principal
     /// @dev Deposit the principal into the yield source (external protocol)
     /// @param _amount The amount of tokens to stake
     function stake(uint256 _amount) external payable activeLP nonReentrant {
-        /// @dev Convert native ETH to WETH for contract, then send to LP
-        /// @dev This section must sit before using _amount elsewhere to guarantee consistency
-        /// @dev This knowingly deviates from the CEI pattern
-        if (PRINCIPAL_TOKEN_ADDRESS == address(0)) {
-            /// @dev Wrap ETH into WETH received by the contract
-            _amount = msg.value;
-            IWETH(WETH_ADDRESS).deposit{value: _amount}();
-
-            /// @dev Send WETH to virtual LP
-            IERC20(WETH_ADDRESS).transfer(VIRTUAL_LP, _amount);
-        } else {
-            /// @dev If not native ETH, transfer principal token to virtual LP
-            /// @dev Prevent contract from receiving ETH when principal is ERC20
-            if (msg.value > 0) {
-                revert NativeTokenNotAllowed();
-            }
-
-            /// @dev Transfer token from user to virtual LP
-            IERC20(PRINCIPAL_TOKEN_ADDRESS).safeTransferFrom(
-                msg.sender,
-                VIRTUAL_LP,
-                _amount
-            );
-        }
+        /// @dev Ensure the correct amount is used in the transaction
+        uint256 amount = (PRINCIPAL_TOKEN_ADDRESS == address(0))
+            ? msg.value
+            : _amount;
 
         /// @dev Revert if the staked amount is zero
-        if (_amount == 0) {
+        if (amount == 0) {
             revert InvalidAmount();
         }
 
@@ -373,19 +352,40 @@ contract PortalV2MultiAsset is ReentrancyGuard {
             uint256 portalEnergy,
             ,
 
-        ) = getUpdateAccount(msg.sender, _amount, true);
+        ) = getUpdateAccount(msg.sender, amount, true);
 
         /// @dev Update the user stake struct
         _updateAccount(msg.sender, stakedBalance, maxStakeDebt, portalEnergy);
 
         /// @dev Update the total stake balance
-        totalPrincipalStaked += _amount;
+        totalPrincipalStaked += amount;
+
+        /// @dev Convert native ETH to WETH for contract, then send to virtual LP
+        if (PRINCIPAL_TOKEN_ADDRESS == address(0)) {
+            /// @dev Wrap ETH into WETH received by the contract
+            IWETH(WETH_ADDRESS).deposit{value: amount}();
+
+            /// @dev Send WETH to virtual LP
+            IERC20(WETH_ADDRESS).transfer(VIRTUAL_LP, amount);
+        } else {
+            /// @dev Prevent contract from receiving ETH if principal is ERC20
+            if (msg.value > 0) {
+                revert NativeTokenNotAllowed();
+            }
+
+            /// @dev Transfer principal token from user to virtual LP
+            IERC20(PRINCIPAL_TOKEN_ADDRESS).safeTransferFrom(
+                msg.sender,
+                VIRTUAL_LP,
+                amount
+            );
+        }
 
         /// @dev Deposit the principal into the yield source (external protocol)
-        virtualLP.depositToYieldSource(PRINCIPAL_TOKEN_ADDRESS, _amount);
+        virtualLP.depositToYieldSource(PRINCIPAL_TOKEN_ADDRESS, amount);
 
         /// @dev Emit event that the stake was successful
-        emit PrincipalStaked(msg.sender, _amount);
+        emit PrincipalStaked(msg.sender, amount);
     }
 
     /// @notice Serve unstaking requests & withdraw principal from yield source
