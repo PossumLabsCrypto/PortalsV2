@@ -77,7 +77,7 @@ contract PortalV2MultiAssetTest is Test {
 
     ////////////// SETUP ////////////////////////
     function setUp() public {
-        vm.createSelectFork({urlOrAlias: "arbitrum_infura_api", blockNumber: 200000000});
+        vm.createSelectFork({urlOrAlias: "alchemy_arbitrum_api", blockNumber: 200000000});
 
         // Create Virtual LP instance
         virtualLP = new VirtualLP(psmSender, _AMOUNT_TO_CONVERT, _FUNDING_PHASE_DURATION, _FUNDING_MIN_AMOUNT);

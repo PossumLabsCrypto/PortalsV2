@@ -6,7 +6,10 @@ libs = ["lib"]
 remappings = ["@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/"]
 #v4.9.6
 
+# Optimizer
+optimizer = true
+optimizer_runs = 1000
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 [rpc_endpoints]
-arbitrum_infura_api = "https://arbitrum-mainnet.infura.io/v3/${arbitrum_infura_api}"
+alchemy_arbitrum_api = "${ARB_MAINNET_URL}"
