@@ -8,3 +8,5 @@ remappings = ["@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/"]
 
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+[rpc_endpoints]
+arbitrum_infura_api = "https://arbitrum-mainnet.infura.io/v3/${arbitrum_infura_api}"

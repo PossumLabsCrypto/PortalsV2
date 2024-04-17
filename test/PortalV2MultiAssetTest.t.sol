@@ -10,20 +10,17 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IWater} from "src/interfaces/IWater.sol";
 import {IPortalV2MultiAsset} from "src/interfaces/IPortalV2MultiAsset.sol";
+import {PortalNFT} from "src/PortalNFT.sol";
 
 contract PortalV2MultiAssetTest is Test {
     // External token addresses
     address constant WETH_ADDRESS = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
-    address public constant PSM_ADDRESS =
-        0x17A8541B82BF67e10B0874284b4Ae66858cb1fd5;
+    address public constant PSM_ADDRESS = 0x17A8541B82BF67e10B0874284b4Ae66858cb1fd5;
 
-    address private constant USDC_WATER =
-        0x9045ae36f963b7184861BDce205ea8B08913B48c;
-    address private constant WETH_WATER =
-        0x8A98929750e6709Af765F976c6bddb5BfFE6C06c;
+    address private constant USDC_WATER = 0x9045ae36f963b7184861BDce205ea8B08913B48c;
+    address private constant WETH_WATER = 0x8A98929750e6709Af765F976c6bddb5BfFE6C06c;
 
-    address private constant _ADDRESS_USDC =
-        0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+    address private constant _ADDRESS_USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address private constant _ADDRESS_ETH = address(0);
 
     // General constants
@@ -80,33 +77,18 @@ contract PortalV2MultiAssetTest is Test {
 
     ////////////// SETUP ////////////////////////
     function setUp() public {
+        vm.createSelectFork({urlOrAlias: "arbitrum_infura_api", blockNumber: 200000000});
+
         // Create Virtual LP instance
-        virtualLP = new VirtualLP(
-            psmSender,
-            _AMOUNT_TO_CONVERT,
-            _FUNDING_PHASE_DURATION,
-            _FUNDING_MIN_AMOUNT
-        );
+        virtualLP = new VirtualLP(psmSender, _AMOUNT_TO_CONVERT, _FUNDING_PHASE_DURATION, _FUNDING_MIN_AMOUNT);
         address _VIRTUAL_LP = address(virtualLP);
 
         // Create Portal instances
         portal_USDC = new PortalV2MultiAsset(
-            _VIRTUAL_LP,
-            _TARGET_CONSTANT_USDC,
-            _ADDRESS_USDC,
-            _DECIMALS_USDC,
-            "USD Coin",
-            "USDC",
-            _META_DATA_URI
+            _VIRTUAL_LP, _TARGET_CONSTANT_USDC, _ADDRESS_USDC, _DECIMALS_USDC, "USD Coin", "USDC", _META_DATA_URI
         );
         portal_ETH = new PortalV2MultiAsset(
-            _VIRTUAL_LP,
-            _TARGET_CONSTANT_WETH,
-            _ADDRESS_ETH,
-            _DECIMALS,
-            "ETHER",
-            "ETH",
-            _META_DATA_URI
+            _VIRTUAL_LP, _TARGET_CONSTANT_WETH, _ADDRESS_ETH, _DECIMALS, "ETHER", "ETH", _META_DATA_URI
         );
 
         // creation time
@@ -154,11 +136,7 @@ contract PortalV2MultiAssetTest is Test {
     // Register USDC Portal
     function helper_registerPortalUSDC() public {
         vm.prank(psmSender);
-        virtualLP.registerPortal(
-            address(portal_USDC),
-            _ADDRESS_USDC,
-            USDC_WATER
-        );
+        virtualLP.registerPortal(address(portal_USDC), _ADDRESS_USDC, USDC_WATER);
     }
 
     // Register ETH Portal
@@ -220,6 +198,34 @@ contract PortalV2MultiAssetTest is Test {
     ////////////////////////////////////////////
     /////////////// LP functions ///////////////
     ////////////////////////////////////////////
+
+    // PSM sendToPortalUser
+    function testRevert_PSM_sendToPortalUser() public {
+        helper_create_bToken();
+        helper_fundLP();
+        helper_activateLP();
+        helper_sendUSDCtoLP();
+        vm.startPrank(Alice);
+        vm.expectRevert(ErrorsLib.PortalNotRegistered.selector);
+        virtualLP.PSM_sendToPortalUser(Bob, 1e10);
+    }
+
+    function testSuccess_PSM_sendToPortalUser() public {
+        uint256 amount = 1e10;
+        helper_create_bToken();
+        helper_fundLP();
+        helper_activateLP();
+        helper_registerPortalUSDC();
+        helper_sendUSDCtoLP();
+        uint256 lpBalanceBefore = IERC20(psm).balanceOf(address(virtualLP));
+        uint256 BobBalanceBefore = IERC20(psm).balanceOf(address(Bob));
+        vm.startPrank(address(portal_USDC));
+        virtualLP.PSM_sendToPortalUser(Bob, amount);
+        uint256 lpBalanceAfter = IERC20(psm).balanceOf(address(virtualLP));
+        uint256 BobBalanceAfter = IERC20(psm).balanceOf(address(Bob));
+        assertTrue(lpBalanceBefore - lpBalanceAfter == amount);
+        assertTrue(BobBalanceAfter - BobBalanceBefore == amount);
+    }
 
     // registerPortal
     function testRevert_registerPortal() public {
@@ -292,6 +298,15 @@ contract PortalV2MultiAssetTest is Test {
         vm.stopPrank();
     }
 
+    function testRevert_depositToYieldSourceTimelock() public {
+        helper_prepareSystem();
+        vm.prank(0xc358399fe89D5F3420329ea7C9d9727Bf410e90A); //USDC WATER OWNER
+        IWater(USDC_WATER).setLockTime(SECONDS_PER_YEAR);
+        vm.startPrank(address(portal_USDC));
+        vm.expectRevert(ErrorsLib.TimeLockActive.selector);
+        virtualLP.depositToYieldSource(address(usdc), 1e5);
+    }
+
     function testSuccess_depositToYieldSource() public {
         helper_prepareSystem();
         uint256 amount = 1e7;
@@ -314,6 +329,15 @@ contract PortalV2MultiAssetTest is Test {
         assertEq(usdc.balanceOf(address(portal_USDC)), 0);
     }
 
+    function testSuccess_depositToYieldSourceETH() public {
+        testSuccess_stake_ETH();
+
+        assertTrue(address(portal_ETH).balance == 0);
+        assertTrue(address(virtualLP).balance == 0);
+        assertTrue(weth.balanceOf(address(portal_ETH)) == 0);
+        assertTrue(weth.balanceOf(address(virtualLP)) == 0);
+    }
+
     // withdrawFromYieldSource
     // No revert testing because inputs come from the Portal which follows a hard coded structure
     function testSuccess_withdrawFromYieldSource() public {
@@ -325,18 +349,78 @@ contract PortalV2MultiAssetTest is Test {
         vm.warp(time + 100);
 
         uint256 withdrawShares = IWater(USDC_WATER).convertToShares(amount);
-        uint256 grossReceived = IWater(USDC_WATER).convertToAssets(
-            withdrawShares
-        );
+        uint256 grossReceived = IWater(USDC_WATER).convertToAssets(withdrawShares);
         uint256 denominator = IWater(USDC_WATER).DENOMINATOR();
-        uint256 fees = (grossReceived * IWater(USDC_WATER).withdrawalFees()) /
-            denominator;
+        uint256 fees = (grossReceived * IWater(USDC_WATER).withdrawalFees()) / denominator;
         uint256 netReceived = grossReceived - fees;
 
         vm.startPrank(address(portal_USDC));
         virtualLP.withdrawFromYieldSource(address(usdc), Alice, amount);
 
         assertEq(usdc.balanceOf(Alice), balanceAliceStart + netReceived);
+    }
+
+    function testSuccess_withdrawFromYieldSourceETH() public {
+        uint256 amount = 1e7;
+        testSuccess_depositToYieldSourceETH();
+
+        uint256 balanceBefore = Alice.balance;
+        uint256 withdrawShares = IWater(WETH_WATER).convertToShares(amount);
+        uint256 grossReceived = IWater(WETH_WATER).convertToAssets(withdrawShares);
+        uint256 denominator = IWater(WETH_WATER).DENOMINATOR();
+        uint256 fees = (grossReceived * IWater(WETH_WATER).withdrawalFees()) / denominator;
+        uint256 netReceived = grossReceived - fees;
+
+        vm.warp(block.timestamp + 100);
+
+        vm.startPrank(address(portal_ETH));
+        virtualLP.withdrawFromYieldSource(address(0), Alice, amount);
+
+        assertEq(Alice.balance, balanceBefore + netReceived);
+    }
+
+    // getProfitOfPortal
+    function testSuccess_getProfitOfPortal() public {
+        helper_prepareSystem();
+        virtualLP.getProfitOfPortal(address(portal_USDC));
+    }
+
+    // collectProfitOfPortal
+    function testRevert_collectProfitOfPortal() public {
+        helper_prepareSystem();
+        vm.expectRevert(ErrorsLib.NoProfit.selector);
+        virtualLP.collectProfitOfPortal(address(portal_USDC));
+    }
+
+    // function testSuccess_collectProfitOfPortal() public {
+    //     uint256 amount = usdcAmount / 2;
+    //     helper_prepareSystem();
+    //     helper_setApprovalsInLP_USDC();
+    //     vm.startPrank(Alice);
+    //     usdc.approve(address(portal_USDC), 1e55);
+    //     console2.log("balance", IERC20(usdc).balanceOf(Alice));
+    //     portal_USDC.stake(amount);
+    //     vm.warp(timestamp + SECONDS_PER_YEAR / 2);
+    //     portal_USDC.stake(amount);
+    //     vm.warp(timestamp + SECONDS_PER_YEAR);
+    //     vm.stopPrank();
+
+    //     virtualLP.collectProfitOfPortal(address(portal_USDC));
+    // }
+
+    // increaseAllowanceVault
+    function testSuccess_increaseAllowanceVault() public {
+        helper_create_bToken();
+        helper_fundLP();
+        helper_activateLP();
+        helper_registerPortalUSDC();
+        address vault = virtualLP.vaults(address(portal_USDC), _ADDRESS_USDC);
+        uint256 allownceBefore = usdc.allowance(address(virtualLP), vault);
+        assertEq(allownceBefore, 0);
+        virtualLP.increaseAllowanceVault(address(portal_USDC));
+        uint256 allownceAfter = usdc.allowance(address(virtualLP), vault);
+        uint256 MAX_UINT = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
+        assertEq(allownceAfter, MAX_UINT);
     }
 
     //////////////////////////////////////////
@@ -376,6 +460,10 @@ contract PortalV2MultiAssetTest is Test {
         vm.expectRevert(ErrorsLib.InsufficientReceived.selector);
         virtualLP.convert(_ADDRESS_USDC, msg.sender, 1e6, block.timestamp);
 
+        // LP does not have enough tokens (balance is 0)
+        vm.expectRevert(ErrorsLib.DeadlineExpired.selector);
+        virtualLP.convert(_ADDRESS_USDC, msg.sender, 1, block.timestamp - 1);
+
         vm.stopPrank();
     }
 
@@ -391,12 +479,64 @@ contract PortalV2MultiAssetTest is Test {
         vm.stopPrank();
 
         assertTrue(psm.balanceOf(Alice) == psmAmount - _AMOUNT_TO_CONVERT);
-        assertTrue(
-            psm.balanceOf(address(virtualLP)) ==
-                _FUNDING_MIN_AMOUNT + _AMOUNT_TO_CONVERT
-        );
+        assertTrue(psm.balanceOf(address(virtualLP)) == _FUNDING_MIN_AMOUNT + _AMOUNT_TO_CONVERT);
         assertTrue(usdc.balanceOf(Bob) == usdcAmount + usdcSendAmount);
         assertTrue(usdc.balanceOf(address(virtualLP)) == 0);
+    }
+
+    function testRevert_convertETH() public {
+        testSuccess_acceptETH();
+        helper_create_bToken();
+        helper_fundLP();
+        helper_activateLP();
+
+        vm.startPrank(Alice);
+        psm.approve(address(virtualLP), 1e55);
+        vm.expectRevert(ErrorsLib.FailedToSendNativeToken.selector);
+        virtualLP.convert(address(0), address(this), 1 ether, block.timestamp);
+    }
+
+    function testSuccess_convertETH() public {
+        testSuccess_acceptETH();
+        helper_create_bToken();
+        helper_fundLP();
+        helper_activateLP();
+
+        vm.startPrank(Alice);
+        psm.approve(address(virtualLP), 1e55);
+        virtualLP.convert(address(0), address(0x123), 1 ether, block.timestamp);
+        vm.stopPrank();
+
+        assertTrue(psm.balanceOf(Alice) == psmAmount - _AMOUNT_TO_CONVERT);
+        assertTrue(psm.balanceOf(address(virtualLP)) == _FUNDING_MIN_AMOUNT + _AMOUNT_TO_CONVERT);
+        assertTrue(address(0x123).balance == 1 ether);
+        assertTrue(address(virtualLP).balance == 0);
+    }
+
+    function testSuccess_maxReward() public {
+        // Create new Virtual LP instance
+        VirtualLP virtuallp = new VirtualLP(psmSender, _AMOUNT_TO_CONVERT, _FUNDING_PHASE_DURATION, 1e10);
+        payable(address(virtuallp)).transfer(1 ether);
+        virtuallp.create_bToken();
+        vm.startPrank(psmSender);
+        psm.approve(address(virtuallp), 1e55);
+        virtuallp.contributeFunding(1e10);
+        vm.stopPrank();
+        vm.warp(fundingPhase);
+        virtuallp.activateLP();
+
+        vm.startPrank(Alice);
+        psm.approve(address(virtuallp), 1e55);
+        virtuallp.convert(address(0), address(0x123), 1, block.timestamp);
+        payable(address(virtuallp)).transfer(1 ether);
+        virtuallp.convert(address(0), address(0x123), 1, block.timestamp);
+        vm.stopPrank();
+
+        assertTrue(psm.balanceOf(Alice) == psmAmount - (_AMOUNT_TO_CONVERT * 2));
+        assertTrue(psm.balanceOf(address(virtuallp)) == 1e10 + (_AMOUNT_TO_CONVERT * 2));
+        assertTrue(address(0x123).balance == 2 ether);
+        assertTrue(address(virtuallp).balance == 0);
+        assertTrue(virtuallp.fundingRewardPool() == 1e11);
     }
 
     // activateLP
@@ -431,6 +571,19 @@ contract PortalV2MultiAssetTest is Test {
         assertTrue(virtualLP.isActiveLP());
     }
 
+    // bToken
+    function testRevert_create_bTokenTwice() public {
+        helper_create_bToken();
+        vm.expectRevert(ErrorsLib.TokenExists.selector);
+        virtualLP.create_bToken();
+    }
+
+    function testRevert_create_inactiveLP() public {
+        helper_prepareSystem();
+        vm.expectRevert(ErrorsLib.ActiveLP.selector);
+        virtualLP.create_bToken();
+    }
+
     // contributeFunding
     function testRevert_contributeFunding() public {
         helper_create_bToken();
@@ -462,10 +615,7 @@ contract PortalV2MultiAssetTest is Test {
 
         IERC20 bToken = IERC20(address(virtualLP.bToken()));
 
-        assertTrue(
-            bToken.balanceOf(Alice) ==
-                (fundingAmount * virtualLP.FUNDING_MAX_RETURN_PERCENT()) / 100
-        );
+        assertTrue(bToken.balanceOf(Alice) == (fundingAmount * virtualLP.FUNDING_MAX_RETURN_PERCENT()) / 100);
         assertTrue(psm.balanceOf(Alice) == psmAmount - fundingAmount);
         assertTrue(psm.balanceOf(address(virtualLP)) == fundingAmount);
     }
@@ -495,8 +645,7 @@ contract PortalV2MultiAssetTest is Test {
         helper_create_bToken();
 
         uint256 fundingAmount = 1e18 + 13; // add 13 to test for rounding
-        uint256 withdrawAmount = (fundingAmount *
-            virtualLP.FUNDING_MAX_RETURN_PERCENT()) / 1000; // withdraw 10% of the funded amount
+        uint256 withdrawAmount = (fundingAmount * virtualLP.FUNDING_MAX_RETURN_PERCENT()) / 1000; // withdraw 10% of the funded amount
 
         vm.startPrank(Alice);
         psm.approve(address(virtualLP), 1e55);
@@ -508,12 +657,8 @@ contract PortalV2MultiAssetTest is Test {
         vm.stopPrank();
 
         assertTrue(bToken.balanceOf(Alice) == 9 * fundingAmount);
-        assertTrue(
-            psm.balanceOf(Alice) == psmAmount - (9 * fundingAmount) / 10 - 1
-        ); // -1 because of precision cutoff, Alice loses 1 WEI
-        assertTrue(
-            psm.balanceOf(address(virtualLP)) == (9 * fundingAmount) / 10 + 1
-        ); // +1 because of precision cutoff, the contract gains 1 WEI
+        assertTrue(psm.balanceOf(Alice) == psmAmount - (9 * fundingAmount) / 10 - 1); // -1 because of precision cutoff, Alice loses 1 WEI
+        assertTrue(psm.balanceOf(address(virtualLP)) == (9 * fundingAmount) / 10 + 1); // +1 because of precision cutoff, the contract gains 1 WEI
     }
 
     // getBurnValuePSM
@@ -535,9 +680,7 @@ contract PortalV2MultiAssetTest is Test {
         // when maximum burn value is surpassed
         vm.warp(hundredYearsLater);
         burnValue = virtualLP.getBurnValuePSM(1e18);
-        assertTrue(
-            burnValue == (1e18 * virtualLP.FUNDING_MAX_RETURN_PERCENT()) / 100
-        );
+        assertTrue(burnValue == 1e18);
     }
 
     // getBurnableBtokenAmount
@@ -613,16 +756,48 @@ contract PortalV2MultiAssetTest is Test {
 
         // check balances
         assertTrue(psm.balanceOf(Alice) > psmAmount - 1e18); // Alice owns initial balance - funding + redeemed reward
-        assertTrue(
-            psm.balanceOf(address(virtualLP)) <
-                _FUNDING_MIN_AMOUNT + 1e18 + _AMOUNT_TO_CONVERT
-        ); // LP owns funding minimum + funding from Alice + amount to convert - redeemed rewards
+        assertTrue(psm.balanceOf(address(virtualLP)) < _FUNDING_MIN_AMOUNT + 1e18 + _AMOUNT_TO_CONVERT); // LP owns funding minimum + funding from Alice + amount to convert - redeemed rewards
         assertTrue(bToken.balanceOf(Alice) == 9e18);
+    }
+
+    function testSuccess_acceptETH() public {
+        assertEq(address(virtualLP).balance, 0);
+        payable(address(virtualLP)).transfer(1 ether);
+        assertEq(address(virtualLP).balance, 1 ether);
+    }
+
+    function testSuccess_acceptETHwithData() public {
+        assertEq(address(virtualLP).balance, 0);
+        (bool sent,) = address(virtualLP).call{value: 1 ether}("0xPortal");
+        require(sent);
+        assertEq(address(virtualLP).balance, 1 ether);
     }
 
     //////////////////////////////////////////
     ///////////// Portal functions ///////////
     //////////////////////////////////////////
+
+    // PortalV2MultiAsset constructor
+    function testRevert_constructor() public {
+        // virtual address
+        vm.expectRevert(ErrorsLib.InvalidConstructor.selector);
+        new PortalV2MultiAsset(address(0), 1e26, address(0x1), 18, "Coin", "USDC", _META_DATA_URI);
+        // constant product
+        vm.expectRevert(ErrorsLib.InvalidConstructor.selector);
+        new PortalV2MultiAsset(address(0x1), 0, address(0x1), 18, "Coin", "USDC", _META_DATA_URI);
+        // decimal
+        vm.expectRevert(ErrorsLib.InvalidConstructor.selector);
+        new PortalV2MultiAsset(address(0x1), 1e26, address(0x1), 0, "Coin", "USDC", _META_DATA_URI);
+        // name
+        vm.expectRevert(ErrorsLib.InvalidConstructor.selector);
+        new PortalV2MultiAsset(address(0x1), 1e26, address(0x1), 18, "", "USDC", _META_DATA_URI);
+        // symbol
+        vm.expectRevert(ErrorsLib.InvalidConstructor.selector);
+        new PortalV2MultiAsset(address(0x1), 1e26, address(0x1), 18, "Coin", "", _META_DATA_URI);
+        // metadata
+        vm.expectRevert(ErrorsLib.InvalidConstructor.selector);
+        new PortalV2MultiAsset(address(0x1), 1e26, address(0x1), 18, "Coin", "USDC", "");
+    }
 
     // getUpdateAccount
     function testRevert_getUpdateAccount() public {
@@ -635,6 +810,7 @@ contract PortalV2MultiAssetTest is Test {
 
     function testSuccess_getUpdateAccount() public {
         uint256 amount = 1e7;
+
         testSuccess_stake_USDC();
 
         vm.startPrank(Alice);
@@ -653,8 +829,7 @@ contract PortalV2MultiAssetTest is Test {
         assertEq(stakedBalance, amount);
         assertEq(
             maxStakeDebt,
-            (stakedBalance * lastMaxLockDuration * 1e18) /
-                (SECONDS_PER_YEAR * portal_USDC.DECIMALS_ADJUSTMENT())
+            (stakedBalance * lastMaxLockDuration * 1e18) / (SECONDS_PER_YEAR * portal_USDC.DECIMALS_ADJUSTMENT())
         );
         assertEq(portalEnergy, maxStakeDebt);
         assertEq(availableToWithdraw, amount);
@@ -664,8 +839,9 @@ contract PortalV2MultiAssetTest is Test {
     }
 
     // stake
-    function testRevert_stake_I() public {
+    function testRevert_stake_PortalNotRegistered() public {
         // After LP is activated but before Portal was registered
+        helper_create_bToken();
         helper_fundLP();
         helper_activateLP();
 
@@ -677,10 +853,11 @@ contract PortalV2MultiAssetTest is Test {
         vm.stopPrank();
     }
 
-    function testRevert_stake_II() public {
-        // after Portal was registered but not funded
+    function testRevert_stake_zeroAmount_valueForNotEthPortal() public {
         helper_registerPortalUSDC();
-
+        helper_create_bToken();
+        helper_fundLP();
+        helper_activateLP();
         vm.startPrank(Alice);
         usdc.approve(address(portal_USDC), 1e55);
 
@@ -694,10 +871,12 @@ contract PortalV2MultiAssetTest is Test {
         vm.stopPrank();
     }
 
-    function testRevert_stake_III() public {
+    function testRevert_stake_zeroValueEthPortal() public {
         // ETH with difference in input amount and message value
         helper_registerPortalETH();
-
+        helper_create_bToken();
+        helper_fundLP();
+        helper_activateLP();
         vm.startPrank(Alice);
         // Sending zero ether value but positive input amount
         vm.expectRevert(ErrorsLib.InvalidAmount.selector);
@@ -751,7 +930,7 @@ contract PortalV2MultiAssetTest is Test {
         portal_USDC.unstake(0);
 
         // amount > user available to withdraw
-        vm.expectRevert(ErrorsLib.InsufficientToWithdraw.selector);
+        vm.expectRevert(ErrorsLib.InsufficientStakeBalance.selector);
         portal_USDC.unstake(1000);
         vm.stopPrank();
 
@@ -774,12 +953,9 @@ contract PortalV2MultiAssetTest is Test {
 
         uint256 balanceBefore = usdc.balanceOf(Alice);
         uint256 withdrawShares = IWater(USDC_WATER).convertToShares(amount);
-        uint256 grossReceived = IWater(USDC_WATER).convertToAssets(
-            withdrawShares
-        );
+        uint256 grossReceived = IWater(USDC_WATER).convertToAssets(withdrawShares);
         uint256 denominator = IWater(USDC_WATER).DENOMINATOR();
-        uint256 fees = (grossReceived * IWater(USDC_WATER).withdrawalFees()) /
-            denominator;
+        uint256 fees = (grossReceived * IWater(USDC_WATER).withdrawalFees()) / denominator;
         uint256 netReceived = grossReceived - fees;
 
         vm.warp(block.timestamp + 100);
@@ -794,18 +970,58 @@ contract PortalV2MultiAssetTest is Test {
         assertTrue(balanceAfter <= usdcAmount);
     }
 
+    function testSuccess_unstake_USDC_maxLock() public {
+        uint256 amount = 1e7;
+        testSuccess_stake_USDC();
+        uint256 balanceBefore = usdc.balanceOf(Alice);
+        assertEq(balanceBefore, usdcAmount - amount);
+
+        vm.warp(block.timestamp + SECONDS_PER_YEAR);
+        portal_USDC.updateMaxLockDuration();
+        vm.prank(Alice);
+        portal_USDC.unstake(1e7);
+
+        uint256 balanceAfter = usdc.balanceOf(Alice);
+        assertTrue(balanceAfter > balanceBefore);
+
+        (
+            ,
+            ,
+            ,
+            uint256 maxStakeDebt,
+            uint256 portalEnergy,
+            uint256 availableToWithdraw,
+            uint256 portalEnergyTokensRequired
+        ) = portal_USDC.getUpdateAccount(Alice, 0, false);
+
+        assertTrue(maxStakeDebt == 0);
+        assertTrue(portalEnergy > 0);
+        assertTrue(availableToWithdraw == 0);
+        assertTrue(portalEnergyTokensRequired == 0);
+    }
+
+    function testSuccess_unstake_mintedPE() public {
+        uint256 amount = 1e7;
+        testSuccess_stake_USDC();
+        testSuccess_create_portalEnergyToken();
+        vm.startPrank(Alice);
+        (,,,, uint256 portalEnergy,,) = portal_USDC.getUpdateAccount(Alice, 0, true);
+        portal_USDC.mintPortalEnergyToken(Alice, portalEnergy / 2);
+
+        vm.warp(block.timestamp + 100);
+        IERC20(portal_USDC.portalEnergyToken()).approve(address(portal_USDC), 1e55);
+        portal_USDC.unstake(amount);
+    }
+
     function testSuccess_unstake_ETH() public {
         uint256 amount = 1e7;
         testSuccess_stake_ETH();
 
         uint256 balanceBefore = Alice.balance;
         uint256 withdrawShares = IWater(WETH_WATER).convertToShares(amount);
-        uint256 grossReceived = IWater(WETH_WATER).convertToAssets(
-            withdrawShares
-        );
+        uint256 grossReceived = IWater(WETH_WATER).convertToAssets(withdrawShares);
         uint256 denominator = IWater(WETH_WATER).DENOMINATOR();
-        uint256 fees = (grossReceived * IWater(WETH_WATER).withdrawalFees()) /
-            denominator;
+        uint256 fees = (grossReceived * IWater(WETH_WATER).withdrawalFees()) / denominator;
         uint256 netReceived = grossReceived - fees;
 
         vm.warp(block.timestamp + 100);
@@ -851,32 +1067,27 @@ contract PortalV2MultiAssetTest is Test {
         vm.stopPrank();
     }
 
+    function testRevert_notOwnerMint() public {
+        helper_createNFT();
+        PortalNFT portalnft = PortalNFT(portal_USDC.portalNFT());
+        vm.expectRevert(ErrorsLib.NotOwner.selector);
+        portalnft.mint(address(0x1), 100, 100, 100);
+    }
+
     function testSuccess_mintNFTposition() public {
         helper_createNFT();
         testSuccess_stake_USDC();
 
-        (
-            ,
-            uint256 lastMaxLockDurationBefore,
-            uint256 stakeBalanceBefore,
-            ,
-            uint256 peBalanceBefore,
-            ,
-
-        ) = portal_USDC.getUpdateAccount(Alice, 0, true);
+        (, uint256 lastMaxLockDurationBefore, uint256 stakeBalanceBefore,, uint256 peBalanceBefore,,) =
+            portal_USDC.getUpdateAccount(Alice, 0, true);
 
         vm.prank(Alice);
+        vm.expectEmit(address(portal_USDC));
+        emit EventsLib.PortalNFTminted(Alice, Karen, 1);
         portal_USDC.mintNFTposition(Karen);
 
-        (
-            ,
-            ,
-            uint256 lastMaxLockDurationAfter,
-            uint256 stakeBalanceAfter,
-            ,
-            uint256 peBalanceAfter,
-
-        ) = portal_USDC.getUpdateAccount(Alice, 0, true);
+        (,, uint256 lastMaxLockDurationAfter, uint256 stakeBalanceAfter,, uint256 peBalanceAfter,) =
+            portal_USDC.getUpdateAccount(Alice, 0, true);
 
         assertTrue(lastMaxLockDurationBefore > 0);
         assertTrue(stakeBalanceBefore > 0);
@@ -885,12 +1096,8 @@ contract PortalV2MultiAssetTest is Test {
         assertEq(stakeBalanceAfter, 0);
         assertEq(peBalanceAfter, 0);
 
-        (
-            uint256 nftMintTime,
-            uint256 nftLastMaxLockDuration,
-            uint256 nftStakedBalance,
-            uint256 nftPortalEnergy
-        ) = portal_USDC.portalNFT().accounts(1);
+        (uint256 nftMintTime, uint256 nftLastMaxLockDuration, uint256 nftStakedBalance, uint256 nftPortalEnergy) =
+            portal_USDC.portalNFT().accounts(1);
 
         assertTrue(address(portal_USDC.portalNFT()) != address(0));
         assertEq(nftMintTime, block.timestamp);
@@ -916,15 +1123,7 @@ contract PortalV2MultiAssetTest is Test {
     function testSuccess_redeemNFTposition() public {
         testSuccess_mintNFTposition();
 
-        (
-            ,
-            ,
-            ,
-            uint256 stakeBalanceBefore,
-            ,
-            uint256 peBalanceBefore,
-
-        ) = portal_USDC.getUpdateAccount(Karen, 0, true);
+        (,,, uint256 stakeBalanceBefore,, uint256 peBalanceBefore,) = portal_USDC.getUpdateAccount(Karen, 0, true);
 
         assertEq(stakeBalanceBefore, 0);
         assertEq(peBalanceBefore, 0);
@@ -932,18 +1131,50 @@ contract PortalV2MultiAssetTest is Test {
         vm.startPrank(Karen);
         portal_USDC.redeemNFTposition(1);
 
-        (
-            ,
-            ,
-            ,
-            uint256 stakeBalanceAfter,
-            ,
-            uint256 peBalanceAfter,
-
-        ) = portal_USDC.getUpdateAccount(Karen, 0, true);
+        (,,, uint256 stakeBalanceAfter,, uint256 peBalanceAfter,) = portal_USDC.getUpdateAccount(Karen, 0, true);
 
         assertTrue(stakeBalanceAfter > 0);
         assertTrue(peBalanceAfter > 0);
+    }
+
+    function testSuccess_redeemNFTpositionAfterTime() public {
+        helper_createNFT();
+        testSuccess_stake_USDC();
+
+        (, uint256 lastMaxLockDurationBefore, uint256 stakeBalanceBefore,, uint256 peBalanceBefore,,) =
+            portal_USDC.getUpdateAccount(Alice, 0, true);
+
+        vm.prank(Alice);
+        portal_USDC.mintNFTposition(Karen);
+
+        vm.warp(timestamp + SECONDS_PER_YEAR);
+        portal_USDC.updateMaxLockDuration();
+        (uint256 nftStakedBalance, uint256 nftPortalEnergy) = portal_USDC.portalNFT().getAccount(1);
+        vm.startPrank(Karen);
+        portal_USDC.redeemNFTposition(1);
+
+        (,, uint256 stakeBalanceAfter,, uint256 peBalanceAfter,,) = portal_USDC.getUpdateAccount(Karen, 0, true);
+        assertTrue(lastMaxLockDurationBefore < portal_USDC.maxLockDuration());
+        assertTrue(nftStakedBalance == stakeBalanceBefore);
+        assertTrue(nftPortalEnergy > peBalanceBefore);
+        assertTrue(stakeBalanceAfter == nftStakedBalance);
+        assertTrue(peBalanceAfter == nftPortalEnergy);
+    }
+
+    // getAccount
+    function testSuccess_getAccount() public {
+        helper_createNFT();
+        testSuccess_stake_USDC();
+        (,, uint256 stakeBalance,, uint256 portalEnergy,,) = portal_USDC.getUpdateAccount(Alice, 0, true);
+
+        vm.prank(Alice);
+        portal_USDC.mintNFTposition(Karen);
+
+        PortalNFT portalnft = PortalNFT(portal_USDC.portalNFT());
+        (uint256 stakedBalance, uint256 portalEnergyNft) = portalnft.getAccount(1);
+
+        assertEq(stakeBalance, stakedBalance);
+        assertEq(portalEnergy, portalEnergyNft);
     }
 
     // buyPortalEnergy
@@ -965,40 +1196,35 @@ contract PortalV2MultiAssetTest is Test {
         // received amount < minReceived
         vm.expectRevert(ErrorsLib.InsufficientReceived.selector);
         portal_USDC.buyPortalEnergy(Alice, 1e18, 1e33, block.timestamp);
+
+        // deadline
+        vm.expectRevert(ErrorsLib.DeadlineExpired.selector);
+        portal_USDC.buyPortalEnergy(Alice, 1e18, 1, block.timestamp - 1);
     }
 
     function testSuccess_buyPortalEnergy() public {
         helper_prepareSystem();
 
         uint256 portalEnergy;
-        (, , , , , portalEnergy, ) = portal_USDC.getUpdateAccount(
-            Alice,
-            0,
-            true
-        );
+        (,,,, portalEnergy,,) = portal_USDC.getUpdateAccount(Alice, 0, true);
 
         vm.startPrank(Alice);
         psm.approve(address(portal_USDC), 1e55);
         portal_USDC.buyPortalEnergy(Alice, 1e18, 1, block.timestamp);
         vm.stopPrank();
 
-        (, , , , , portalEnergy, ) = portal_USDC.getUpdateAccount(
-            Alice,
-            0,
-            true
-        );
+        (,,,, portalEnergy,,) = portal_USDC.getUpdateAccount(Alice, 0, true);
 
         uint256 reserve1 = _TARGET_CONSTANT_USDC / _FUNDING_MIN_AMOUNT;
         uint256 netPSMinput = (1e18 * 99) / 100;
-        uint256 result = (netPSMinput * reserve1) /
-            (netPSMinput + _FUNDING_MIN_AMOUNT);
+        uint256 result = (netPSMinput * reserve1) / (netPSMinput + _FUNDING_MIN_AMOUNT);
 
         assertEq(portalEnergy, result);
     }
 
     // sellPortalEnergy
     function testRevert_sellPortalEnergy() public {
-        helper_prepareSystem();
+        testSuccess_stake_USDC();
         // amount 0
         vm.startPrank(Alice);
         vm.expectRevert(ErrorsLib.InvalidAmount.selector);
@@ -1014,22 +1240,23 @@ contract PortalV2MultiAssetTest is Test {
 
         // sold amount > caller balance
         vm.expectRevert(ErrorsLib.InsufficientBalance.selector);
-        portal_USDC.sellPortalEnergy(Alice, 1e18, 1e33, block.timestamp);
+        portal_USDC.sellPortalEnergy(Alice, 1e55, 1e33, block.timestamp);
 
-        // // received amount < minReceived
-        // vm.expectRevert(ErrorsLib.InsufficientReceived.selector);
-        // portal_USDC.sellPortalEnergy(Alice, 1e18, 1e33, block.timestamp);
+        // deadline
+        vm.expectRevert(ErrorsLib.DeadlineExpired.selector);
+        portal_USDC.sellPortalEnergy(Alice, 1e18, 1, block.timestamp - 1);
+
+        // received amount < minReceived
+        vm.startPrank(Alice);
+        vm.expectRevert(ErrorsLib.InsufficientReceived.selector);
+        portal_USDC.sellPortalEnergy(Alice, 1e5, 1e55, block.timestamp);
     }
 
     function testSuccess_sellPortalEnergy() public {
         testSuccess_stake_USDC();
         uint256 amount = 1e6;
 
-        (, , , , , uint256 peBalanceBefore, ) = portal_USDC.getUpdateAccount(
-            Alice,
-            0,
-            true
-        );
+        (,,,, uint256 peBalanceBefore,,) = portal_USDC.getUpdateAccount(Alice, 0, true);
         uint256 psmBalanceBefore_Bob = psm.balanceOf(Bob);
 
         vm.startPrank(Alice);
@@ -1039,11 +1266,7 @@ contract PortalV2MultiAssetTest is Test {
         uint256 reserve1 = _TARGET_CONSTANT_USDC / _FUNDING_MIN_AMOUNT;
         uint256 result = (amount * reserve0) / (amount + reserve1);
 
-        (, , , , , uint256 peBalanceAfter, ) = portal_USDC.getUpdateAccount(
-            Alice,
-            0,
-            true
-        );
+        (,,,, uint256 peBalanceAfter,,) = portal_USDC.getUpdateAccount(Alice, 0, true);
         uint256 psmBalanceAfter_Bob = psm.balanceOf(Bob);
 
         assertEq(peBalanceAfter, peBalanceBefore - amount);
@@ -1068,8 +1291,8 @@ contract PortalV2MultiAssetTest is Test {
         uint256 reserve0 = _FUNDING_MIN_AMOUNT;
         uint256 reserve1 = _TARGET_CONSTANT_USDC / _FUNDING_MIN_AMOUNT;
         uint256 lpProtection = portal_USDC.LP_PROTECTION_HURDLE();
-        uint256 resultCheck = (((amount * (100 - lpProtection)) / 100) *
-            reserve1) / ((amount * (100 - lpProtection)) / 100 + reserve0);
+        uint256 resultCheck =
+            (((amount * (100 - lpProtection)) / 100) * reserve1) / ((amount * (100 - lpProtection)) / 100 + reserve0);
 
         assertEq(result, resultCheck);
     }
@@ -1134,34 +1357,24 @@ contract PortalV2MultiAssetTest is Test {
     }
 
     function testSuccess_burnPortalEnergyToken() public {
-        testSuccess_mintPortalEnergyToken();
-        uint256 balanceBefore = IERC20(portal_USDC.portalEnergyToken())
-            .balanceOf(Alice);
+        testSuccess_mintPortalEnergyToken(); //alice 1e4 minted
+        uint256 balanceBefore = IERC20(portal_USDC.portalEnergyToken()).balanceOf(Alice);
         uint256 amount = balanceBefore;
 
-        (, , , , , uint256 peBalanceBefore_Bob, ) = portal_USDC
-            .getUpdateAccount(Bob, 0, true);
+        (,,,, uint256 peBalanceBefore_Bob,,) = portal_USDC.getUpdateAccount(Bob, 0, true);
 
         vm.startPrank(Alice);
-        IERC20(portal_USDC.portalEnergyToken()).approve(
-            address(portal_USDC),
-            1e55
-        );
+        IERC20(portal_USDC.portalEnergyToken()).approve(address(portal_USDC), 1e55);
         portal_USDC.burnPortalEnergyToken(Bob, amount);
         vm.stopPrank();
 
-        (, , , , , uint256 peBalanceAfter_Bob, ) = portal_USDC.getUpdateAccount(
-            Bob,
-            0,
-            true
-        );
-        uint256 balanceAfter = IERC20(portal_USDC.portalEnergyToken())
-            .balanceOf(Alice);
+        (,,,, uint256 peBalanceAfter_Bob,,) = portal_USDC.getUpdateAccount(Bob, 0, true);
+        uint256 balanceAfter = IERC20(portal_USDC.portalEnergyToken()).balanceOf(Alice);
 
         assertEq(balanceBefore, amount);
         assertEq(balanceAfter, 0);
         assertEq(peBalanceBefore_Bob, 0);
-        assertEq(peBalanceAfter_Bob, amount);
+        assertEq(peBalanceAfter_Bob - peBalanceBefore_Bob, amount);
     }
 
     // mintPortalEnergyToken
@@ -1188,28 +1401,37 @@ contract PortalV2MultiAssetTest is Test {
         testSuccess_create_portalEnergyToken();
 
         uint256 amount = 1e4;
-        (, , , , , uint256 peBalanceBefore, ) = portal_USDC.getUpdateAccount(
-            Alice,
-            0,
-            true
-        );
+        (,,,, uint256 peBalanceBefore,,) = portal_USDC.getUpdateAccount(Alice, 0, true);
 
         vm.prank(Alice);
         portal_USDC.mintPortalEnergyToken(Alice, amount);
 
-        uint256 lpProtection = portal_USDC.LP_PROTECTION_HURDLE();
-        uint256 expectMinted = (amount * (100 - lpProtection)) / 100;
-
-        (, , , , , uint256 peBalanceAfter, ) = portal_USDC.getUpdateAccount(
-            Alice,
-            0,
-            true
-        );
+        (,,,, uint256 peBalanceAfter,,) = portal_USDC.getUpdateAccount(Alice, 0, true);
 
         assertEq(peBalanceAfter, peBalanceBefore - amount);
-        assertEq(
-            IERC20(portal_USDC.portalEnergyToken()).balanceOf(Alice),
-            expectMinted
-        );
+        assertEq(IERC20(portal_USDC.portalEnergyToken()).balanceOf(Alice), amount);
+    }
+
+    // updateMaxLockDuration
+    function testRevert_newTimeLessThanMaxlockduraion() external {
+        vm.expectRevert(ErrorsLib.DurationTooLow.selector);
+        portal_USDC.updateMaxLockDuration();
+    }
+
+    function testRevert_lockDurationNotUpdateable() external {
+        vm.warp(timestamp + 365 * 6 days);
+        portal_USDC.updateMaxLockDuration();
+        vm.expectRevert(ErrorsLib.DurationLocked.selector);
+        portal_USDC.updateMaxLockDuration();
+    }
+
+    function testSuccess_updateMaxLockDuration() external {
+        assertEq(portal_USDC.maxLockDuration(), maxLockDuration);
+        vm.warp(timestamp + maxLockDuration + 1);
+        portal_USDC.updateMaxLockDuration();
+        assertEq(portal_USDC.maxLockDuration(), 2 * (timestamp + maxLockDuration + 1 - portal_USDC.CREATION_TIME()));
+        vm.warp(timestamp + 31536000 * 10);
+        portal_USDC.updateMaxLockDuration();
+        assertEq(portal_USDC.maxLockDuration(), _TERMINAL_MAX_LOCK_DURATION);
     }
 }
