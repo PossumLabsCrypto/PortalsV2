@@ -6,11 +6,7 @@ interface IVirtualLP {
 
     function depositToYieldSource(address _asset, uint256 _amount) external;
 
-    function withdrawFromYieldSource(
-        address _asset,
-        address _user,
-        uint256 _amount
-    ) external;
+    function withdrawFromYieldSource(address _asset, address _user, uint256 _amount) external;
 
     function isActiveLP() external view returns (bool);
 

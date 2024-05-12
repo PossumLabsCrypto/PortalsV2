@@ -10,12 +10,11 @@ library ErrorsLib {
     error InvalidAmount();
     error DeadlineExpired();
     error InvalidConstructor();
-    error DurationTooLow();
+    error DurationNotUpdateable();
     error NativeTokenNotAllowed();
     error TokenExists();
     error EmptyAccount();
     error InsufficientBalance();
-    error DurationLocked();
     error InsufficientToWithdraw();
     error InsufficientStakeBalance();
 

@@ -37,20 +37,15 @@ contract Deploy is Script {
         // address LINK_WATER = 0xFF614Dd6fC857e4daDa196d75DaC51D522a2ccf7;
 
         // Constant Products
-        uint256 USDC_product = 915750915750916 * 1e36;
-        uint256 ETH_product = 247747725428 * 1e36;
-        uint256 WBTC_product = 12387387498 * 1e36;
-        uint256 ARB_product = 509164969450102 * 1e36;
-        uint256 LINK_product = 45829514207149 * 1e36;
+        uint256 USDC_product = 133333333333333 * 1e36;
+        uint256 ETH_product = 44444444444 * 1e36;
+        uint256 WBTC_product = 2168021680 * 1e36;
+        uint256 ARB_product = 133333333333333 * 1e36;
+        uint256 LINK_product = 9523809523809 * 1e36;
 
         vm.startBroadcast();
         // Step 1: Deploy the VirtualLP with constructor values
-        VirtualLP vLP = new VirtualLP(
-            0xa0BFD02a7a47CBCA7230E03fbf04A196C3E771E3,
-            1e24,
-            604800,
-            5e27
-        );
+        VirtualLP vLP = new VirtualLP(0xa0BFD02a7a47CBCA7230E03fbf04A196C3E771E3, 1e24, 604800, 5e27);
 
         // Step 2: create the bToken of the VirtualLP
         vLP.create_bToken();

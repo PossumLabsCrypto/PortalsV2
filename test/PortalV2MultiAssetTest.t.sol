@@ -26,7 +26,7 @@ contract PortalV2MultiAssetTest is Test {
     // General constants
     uint256 constant _TERMINAL_MAX_LOCK_DURATION = 157680000;
     uint256 private constant SECONDS_PER_YEAR = 31536000; // seconds in a 365 day year
-    uint256 public maxLockDuration = 7776000; // 7776000 starting value for maximum allowed lock duration of user´s balance in seconds (90 days)
+    uint256 public maxLockDuration = 8640000; // starting value (100 days)
     uint256 private constant OWNER_DURATION = 31536000; // 1 Year
 
     // Portal Constructor values
@@ -1008,9 +1008,16 @@ contract PortalV2MultiAssetTest is Test {
         (,,,, uint256 portalEnergy,,) = portal_USDC.getUpdateAccount(Alice, 0, true);
         portal_USDC.mintPortalEnergyToken(Alice, portalEnergy / 2);
 
-        vm.warp(block.timestamp + 100);
+        vm.warp(block.timestamp + 1);
         IERC20(portal_USDC.portalEnergyToken()).approve(address(portal_USDC), 1e55);
+        uint256 bal = IERC20(portal_USDC.portalEnergyToken()).balanceOf(Alice);
+        console2.log(bal);
         portal_USDC.unstake(amount);
+        bal = IERC20(portal_USDC.portalEnergyToken()).balanceOf(Alice);
+        console2.log(bal);
+
+        (,,,, portalEnergy,,) = portal_USDC.getUpdateAccount(Alice, 0, true);
+        console2.log(portalEnergy);
     }
 
     function testSuccess_unstake_ETH() public {
@@ -1414,14 +1421,14 @@ contract PortalV2MultiAssetTest is Test {
 
     // updateMaxLockDuration
     function testRevert_newTimeLessThanMaxlockduraion() external {
-        vm.expectRevert(ErrorsLib.DurationTooLow.selector);
+        vm.expectRevert(ErrorsLib.DurationNotUpdateable.selector);
         portal_USDC.updateMaxLockDuration();
     }
 
     function testRevert_lockDurationNotUpdateable() external {
         vm.warp(timestamp + 365 * 6 days);
         portal_USDC.updateMaxLockDuration();
-        vm.expectRevert(ErrorsLib.DurationLocked.selector);
+        vm.expectRevert(ErrorsLib.DurationNotUpdateable.selector);
         portal_USDC.updateMaxLockDuration();
     }
 

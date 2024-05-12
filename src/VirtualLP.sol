@@ -36,7 +36,8 @@ error OwnerRevoked();
 
 /// @title Portal V2 Virtual LP
 /// @author Possum Labs
-/** @notice This contract serves as the shared, virtual LP for multiple Portals
+/**
+ * @notice This contract serves as the shared, virtual LP for multiple Portals
  * Each Portal must be registered by the owner
  * The contract is owned for a predetermined duration to enable registering Portals
  * Registering Portals must be permissioned because it can be malicious
@@ -66,10 +67,7 @@ contract VirtualLP is ReentrancyGuard {
         if (_AMOUNT_TO_CONVERT == 0) {
             revert InvalidConstructor();
         }
-        if (
-            _FUNDING_PHASE_DURATION < 259200 ||
-            _FUNDING_PHASE_DURATION > 2592000
-        ) {
+        if (_FUNDING_PHASE_DURATION < 259200 || _FUNDING_PHASE_DURATION > 2592000) {
             revert InvalidConstructor();
         }
         if (_FUNDING_MIN_AMOUNT == 0) {
@@ -95,9 +93,8 @@ contract VirtualLP is ReentrancyGuard {
     MintBurnToken public bToken; // the receipt token for funding the LP
     address public bTokenAddress; // the address of the receipt token
 
-    uint256 constant SECONDS_PER_YEAR = 31536000; // seconds in a 365 day year
-    uint256 constant MAX_UINT =
-        115792089237316195423570985008687907853269984665640564039457584007913129639935;
+    uint256 private constant SECONDS_PER_YEAR = 31536000; // seconds in a 365 day year
+    uint256 private constant MAX_UINT = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
 
     address public owner;
     uint256 private constant OWNER_DURATION = 777600; // 9 days
@@ -109,19 +106,19 @@ contract VirtualLP is ReentrancyGuard {
 
     uint256 public constant FUNDING_APR = 48; // annual redemption value increase (APR) of bTokens
     uint256 public constant FUNDING_MAX_RETURN_PERCENT = 1000; // maximum redemption value percent of bTokens (must be >100)
-    uint256 public constant FUNDING_REWARD_SHARE = 10; // 10% of yield goes to the funding pool until funders are paid back
-    uint256 immutable FUNDING_REWARD; // The token amount transferred to the reward Pool when calling convert
+    uint256 private constant FUNDING_REWARD_SHARE = 20; // 20% of yield goes to the funding pool until funders are paid back
+    uint256 private immutable FUNDING_REWARD; // The token amount transferred to the reward Pool when calling convert
 
-    address constant WETH_ADDRESS = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
-    address constant PSM_ADDRESS = 0x17A8541B82BF67e10B0874284b4Ae66858cb1fd5; // address of PSM token
+    address private constant WETH_ADDRESS = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
+    address private constant PSM_ADDRESS = 0x17A8541B82BF67e10B0874284b4Ae66858cb1fd5; // address of PSM token
 
     // Vaultka lending vault addresses (= vault shares)
-    address constant USDCE_WATER = 0x806e8538FC05774Ea83d9428F778E423F6492475;
-    address constant USDC_WATER = 0x9045ae36f963b7184861BDce205ea8B08913B48c;
-    address constant ARB_WATER = 0x175995159ca4F833794C88f7873B3e7fB12Bb1b6;
-    address constant WBTC_WATER = 0x4e9e41Bbf099fE0ef960017861d181a9aF6DDa07;
-    address constant WETH_WATER = 0x8A98929750e6709Af765F976c6bddb5BfFE6C06c;
-    address constant LINK_WATER = 0xFF614Dd6fC857e4daDa196d75DaC51D522a2ccf7;
+    address private constant USDCE_WATER = 0x806e8538FC05774Ea83d9428F778E423F6492475;
+    address private constant USDC_WATER = 0x9045ae36f963b7184861BDce205ea8B08913B48c;
+    address private constant ARB_WATER = 0x175995159ca4F833794C88f7873B3e7fB12Bb1b6;
+    address private constant WBTC_WATER = 0x4e9e41Bbf099fE0ef960017861d181a9aF6DDa07;
+    address private constant WETH_WATER = 0x8A98929750e6709Af765F976c6bddb5BfFE6C06c;
+    address private constant LINK_WATER = 0xFF614Dd6fC857e4daDa196d75DaC51D522a2ccf7;
 
     bool public isActiveLP; // Will be set to true when funding phase ends
     bool public bTokenCreated; // flag for bToken deployment
@@ -129,27 +126,17 @@ contract VirtualLP is ReentrancyGuard {
     uint256 public fundingRewardPool; // amount of PSM available for redemption against bTokens
 
     mapping(address portal => bool isRegistered) public registeredPortals;
-    mapping(address portal => mapping(address asset => address vault))
-        public vaults;
+    mapping(address portal => mapping(address asset => address vault)) public vaults;
 
     // ============================================
     // ==                EVENTS                  ==
     // ============================================
     event LP_Activated(address indexed, uint256 fundingBalance);
-    event ConvertExecuted(
-        address indexed token,
-        address indexed caller,
-        address indexed recipient,
-        uint256 amount
-    );
+    event ConvertExecuted(address indexed token, address indexed caller, address indexed recipient, uint256 amount);
 
     event FundingReceived(address indexed, uint256 amount);
     event FundingWithdrawn(address indexed, uint256 amount);
-    event RewardsRedeemed(
-        address indexed,
-        uint256 amountBurned,
-        uint256 amountReceived
-    );
+    event RewardsRedeemed(address indexed, uint256 amountBurned, uint256 amountReceived);
 
     // ============================================
     // ==               MODIFIERS                ==
@@ -191,10 +178,7 @@ contract VirtualLP is ReentrancyGuard {
     /// @dev All critical logic is handled by the Portal, hence no additional checks
     /// @param _recipient The address that recieves the PSM
     /// @param _amount The amount of PSM send to the recipient
-    function PSM_sendToPortalUser(
-        address _recipient,
-        uint256 _amount
-    ) external registeredPortal {
+    function PSM_sendToPortalUser(address _recipient, uint256 _amount) external registeredPortal {
         /// @dev Transfer PSM to the recipient
         IERC20(PSM_ADDRESS).transfer(_recipient, _amount);
     }
@@ -206,11 +190,7 @@ contract VirtualLP is ReentrancyGuard {
     /// @param _portal The address of the Portal to register
     /// @param _asset The address of the principal token of the Portal
     /// @param _vault The address of the staking Vault used by the Portal in the external protocol
-    function registerPortal(
-        address _portal,
-        address _asset,
-        address _vault
-    ) external onlyOwner {
+    function registerPortal(address _portal, address _asset, address _vault) external onlyOwner {
         ///@dev register Portal so that it can call protected functions
         registeredPortals[_portal] = true;
 
@@ -240,10 +220,7 @@ contract VirtualLP is ReentrancyGuard {
     /// @dev Receive and transfer tokens from the Portal to the external protocol via interface
     /// @param _asset The address of the asset to deposit
     /// @param _amount The amount of asset to deposit
-    function depositToYieldSource(
-        address _asset,
-        uint256 _amount
-    ) external registeredPortal {
+    function depositToYieldSource(address _asset, uint256 _amount) external registeredPortal {
         /// @dev Check that the withdraw timeLock is zero to protect stakers from griefing attack
         if (IWater(vaults[msg.sender][_asset]).lockTime() > 0) {
             revert TimeLockActive();
@@ -260,18 +237,15 @@ contract VirtualLP is ReentrancyGuard {
     /// @param _asset The address of the asset to withdraw
     /// @param _user The address of the user that will receive the withdrawn assets
     /// @param _amount The amount of assets to withdraw
-    function withdrawFromYieldSource(
-        address _asset,
-        address payable _user,
-        uint256 _amount
-    ) external registeredPortal {
+    function withdrawFromYieldSource(address _asset, address payable _user, uint256 _amount)
+        external
+        registeredPortal
+    {
         /// @dev Calculate number of Vault Shares that equal the withdraw amount
-        uint256 withdrawShares = IWater(vaults[msg.sender][_asset])
-            .convertToShares(_amount);
+        uint256 withdrawShares = IWater(vaults[msg.sender][_asset]).convertToShares(_amount);
 
         /// @dev Get the withdrawable assets from burning Vault Shares (consider rounding)
-        uint256 withdrawAssets = IWater(vaults[msg.sender][_asset])
-            .convertToAssets(withdrawShares);
+        uint256 withdrawAssets = IWater(vaults[msg.sender][_asset]).convertToAssets(withdrawShares);
 
         /// @dev Initialize helper variables for withdraw amount sanity check
         uint256 balanceBefore;
@@ -282,11 +256,7 @@ contract VirtualLP is ReentrancyGuard {
 
         /// @dev Withdraw the staked assets from Vault
         balanceBefore = IERC20(tokenAdr).balanceOf(address(this));
-        IWater(vaults[msg.sender][_asset]).withdraw(
-            withdrawAssets,
-            address(this),
-            address(this)
-        );
+        IWater(vaults[msg.sender][_asset]).withdraw(withdrawAssets, address(this), address(this));
         balanceAfter = IERC20(tokenAdr).balanceOf(address(this));
 
         /// @dev Sanity check on obtained amount from Vault
@@ -304,45 +274,33 @@ contract VirtualLP is ReentrancyGuard {
     /// @notice Internal function to get Vault profit before withdrawal fees
     /// @dev Get the surplus assets in the Vault excluding withdrawal fee
     /// @param _portal The address of a registered Portal
-    function _getProfitOfPortal(
-        address _portal
-    ) private view returns (uint256 profitAsset, uint256 profitShares) {
+    function _getProfitOfPortal(address _portal) private view returns (uint256 profitAsset, uint256 profitShares) {
         /// @dev Get the asset of the Portal
         IPortalV2MultiAsset portal = IPortalV2MultiAsset(_portal);
         address asset = portal.PRINCIPAL_TOKEN_ADDRESS();
 
         /// @dev Get the Vault shares owned by Portal
-        uint256 sharesOwned = IERC20(vaults[_portal][asset]).balanceOf(
-            address(this)
-        );
+        uint256 sharesOwned = IERC20(vaults[_portal][asset]).balanceOf(address(this));
 
         /// @dev Calculate the shares to be reserved for user withdrawals
-        uint256 sharesDebt = IWater(vaults[_portal][asset]).convertToShares(
-            portal.totalPrincipalStaked()
-        );
+        uint256 sharesDebt = IWater(vaults[_portal][asset]).convertToShares(portal.totalPrincipalStaked());
 
         /// @dev Calculate the surplus shares owned by the Portal
-        profitShares = (sharesOwned > sharesDebt)
-            ? sharesOwned - sharesDebt
-            : 0;
+        profitShares = (sharesOwned > sharesDebt) ? sharesOwned - sharesDebt : 0;
 
         /// @dev Calculate the net profit in assets
-        profitAsset = IWater(vaults[_portal][asset]).convertToAssets(
-            profitShares
-        );
+        profitAsset = IWater(vaults[_portal][asset]).convertToAssets(profitShares);
     }
 
     /// @notice View current net profit of a Vault used by a specific Portal
     /// @dev Get surplus assets in the Vault after deducting withdrawal fees
     /// @param _portal The address of a registered Portal
-    function getProfitOfPortal(
-        address _portal
-    ) external view returns (uint256 profitOfPortal) {
+    function getProfitOfPortal(address _portal) external view returns (uint256 profitOfPortal) {
         /// @dev Get the asset of the Portal
         address asset = IPortalV2MultiAsset(_portal).PRINCIPAL_TOKEN_ADDRESS();
 
         /// @dev Get the gross profit of the Vault
-        (uint256 profit, ) = _getProfitOfPortal(_portal);
+        (uint256 profit,) = _getProfitOfPortal(_portal);
 
         /// @dev Calculate the net profit after withdrawal fees
         uint256 denominator = IWater(vaults[_portal][asset]).DENOMINATOR();
@@ -355,6 +313,9 @@ contract VirtualLP is ReentrancyGuard {
     /// @dev Withdraw the asset surplus from Vault to contract
     /// @param _portal The address of a registered Portal
     function collectProfitOfPortal(address _portal) public {
+        /// @dev Validation check that the Portal is registered
+        if (!registeredPortals[_portal]) revert PortalNotRegistered();
+
         /// @dev Get the asset of the Portal
         address asset = IPortalV2MultiAsset(_portal).PRINCIPAL_TOKEN_ADDRESS();
 
@@ -366,31 +327,26 @@ contract VirtualLP is ReentrancyGuard {
         }
 
         /// @dev Withdraw the profit Assets from the Vault to contract (collect WETH from ETH Vault)
-        IWater(vaults[_portal][asset]).withdraw(
-            profit,
-            address(this),
-            address(this)
-        );
+        IWater(vaults[_portal][asset]).withdraw(profit, address(this), address(this));
     }
 
     /// @notice This function increases spending allowance for staking assets by Vaults
     /// @dev Increase the token spending allowance of assets by a staking Vault of a specific Portal
     /// @param _portal The address of a registered Portal
     function increaseAllowanceVault(address _portal) public {
+        /// @dev Validation check that the Portal is registered
+        if (!registeredPortals[_portal]) revert PortalNotRegistered();
+
         /// @dev Get the asset of the Portal
         address asset = IPortalV2MultiAsset(_portal).PRINCIPAL_TOKEN_ADDRESS();
 
         /// @dev Get the principal token address, WETH for ETH
         address tokenAdr = (asset == address(0)) ? WETH_ADDRESS : asset;
 
-        /// @dev For ERC20 that require allowance to be 0 before increasing (e.g. USDT) add the following:
-        /// IERC20(tokenAdr).approve(vaults[_portal][asset], 0);
-
         /// @dev Allow spending of Assets by the associated Vault
-        IERC20(tokenAdr).safeIncreaseAllowance(
-            vaults[_portal][asset],
-            MAX_UINT
-        );
+        /// @dev Set approval to 0 first to avoid overflow when increasing from non-zero
+        IERC20(tokenAdr).approve(vaults[_portal][asset], 0);
+        IERC20(tokenAdr).safeIncreaseAllowance(vaults[_portal][asset], MAX_UINT);
     }
 
     // ============================================
@@ -405,22 +361,15 @@ contract VirtualLP is ReentrancyGuard {
     /// @param _minReceived The receiving address of the output
     /// @param _minReceived The minimum amount of tokens received
     /// @param _deadline The timestamp until the transaction is valid
-    function convert(
-        address _token,
-        address _recipient,
-        uint256 _minReceived,
-        uint256 _deadline
-    ) external nonReentrant activeLP {
+    function convert(address _token, address _recipient, uint256 _minReceived, uint256 _deadline)
+        external
+        nonReentrant
+        activeLP
+    {
         /// @dev Check the validity of token and recipient addresses
         if (
-            _token == PSM_ADDRESS ||
-            _token == USDCE_WATER ||
-            _token == USDC_WATER ||
-            _token == ARB_WATER ||
-            _token == WBTC_WATER ||
-            _token == WETH_WATER ||
-            _token == LINK_WATER ||
-            _recipient == address(0)
+            _token == PSM_ADDRESS || _token == USDCE_WATER || _token == USDC_WATER || _token == ARB_WATER
+                || _token == WBTC_WATER || _token == WETH_WATER || _token == LINK_WATER || _recipient == address(0)
         ) {
             revert InvalidAddress();
         }
@@ -461,17 +410,11 @@ contract VirtualLP is ReentrancyGuard {
         }
 
         /// @dev transfer PSM from the caller to the LP
-        IERC20(PSM_ADDRESS).transferFrom(
-            msg.sender,
-            address(this),
-            AMOUNT_TO_CONVERT
-        );
+        IERC20(PSM_ADDRESS).transferFrom(msg.sender, address(this), AMOUNT_TO_CONVERT);
 
         /// @dev Transfer the output token from the contract to the recipient
         if (_token == address(0)) {
-            (bool sent, ) = payable(_recipient).call{value: contractBalance}(
-                ""
-            );
+            (bool sent,) = payable(_recipient).call{value: contractBalance}("");
             if (!sent) {
                 revert FailedToSendNativeToken();
             }
@@ -546,8 +489,7 @@ contract VirtualLP is ReentrancyGuard {
         }
 
         /// @dev Calculate the amount of PSM returned to the user
-        uint256 withdrawAmount = (_amountBtoken * 100) /
-            FUNDING_MAX_RETURN_PERCENT;
+        uint256 withdrawAmount = (_amountBtoken * 100) / FUNDING_MAX_RETURN_PERCENT;
 
         /// @dev Decrease the fundingBalance tracker by the amount of PSM withdrawn
         fundingBalance -= withdrawAmount;
@@ -566,16 +508,12 @@ contract VirtualLP is ReentrancyGuard {
     /// @dev Get the current burn value of any amount of bTokens
     /// @param _amount The amount of bTokens to burn
     /// @return burnValue The amount of PSM received when redeeming bTokens
-    function getBurnValuePSM(
-        uint256 _amount
-    ) public view activeLP returns (uint256 burnValue) {
+    function getBurnValuePSM(uint256 _amount) public view activeLP returns (uint256 burnValue) {
         /// @dev Calculate the minimum burn value
         uint256 minValue = (_amount * 100) / FUNDING_MAX_RETURN_PERCENT;
 
         /// @dev Calculate the time based burn value
-        uint256 accruedValue = (_amount *
-            (block.timestamp - CREATION_TIME) *
-            FUNDING_APR) / (100 * SECONDS_PER_YEAR);
+        uint256 accruedValue = (_amount * (block.timestamp - CREATION_TIME) * FUNDING_APR) / (100 * SECONDS_PER_YEAR);
 
         /// @dev Calculate the maximum and current burn value
         uint256 maxValue = _amount;
@@ -587,12 +525,7 @@ contract VirtualLP is ReentrancyGuard {
     /// @notice Get the amount of bTokens that can be burned against the reward Pool
     /// @dev Calculate how many bTokens can be burned to redeem the entire reward Pool
     /// @return amountBurnable The amount of bTokens that can be redeemed for rewards
-    function getBurnableBtokenAmount()
-        public
-        view
-        activeLP
-        returns (uint256 amountBurnable)
-    {
+    function getBurnableBtokenAmount() public view activeLP returns (uint256 amountBurnable) {
         /// @dev Calculate the burn value of 1 full bToken in PSM
         /// @dev Add 1 WEI to handle rounding issue in the next step
         uint256 burnValueFullToken = getBurnValuePSM(1e18) + 1;
