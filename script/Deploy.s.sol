@@ -45,7 +45,7 @@ contract Deploy is Script {
 
         vm.startBroadcast();
         // Step 1: Deploy the VirtualLP with constructor values
-        VirtualLP vLP = new VirtualLP(0xa0BFD02a7a47CBCA7230E03fbf04A196C3E771E3, 1e24, 604800, 5e27);
+        VirtualLP vLP = new VirtualLP(0xa0BFD02a7a47CBCA7230E03fbf04A196C3E771E3, 1e24, 604800, 2e26);
 
         // Step 2: create the bToken of the VirtualLP
         vLP.create_bToken();
